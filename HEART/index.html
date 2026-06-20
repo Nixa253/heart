@@ -4,7 +4,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trái Tim Đập Nhịp</title>
+  <title>My love</title>
+  <link rel="icon" href="assets/photo.jpg" type="image/jpeg">
+  <link rel="apple-touch-icon" href="assets/photo.jpg">
   <style>
     :root {
       --bg: #050108;
@@ -148,6 +150,38 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .mediaRow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: rgba(255, 210, 225, 0.85);
+      font-size: 13px;
+      width: min(92vw, 360px);
+    }
+
+    .mediaRow label {
+      flex-shrink: 0;
+      min-width: 42px;
+    }
+
+    .mediaRow select {
+      flex: 1;
+      min-width: 0;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 111, 165, 0.35);
+      background: rgba(20, 4, 12, 0.85);
+      color: rgba(255, 210, 225, 0.95);
+      font-size: 13px;
+      cursor: pointer;
+      outline: none;
+    }
+
+    .mediaRow select:focus-visible {
+      border-color: var(--pink-core);
+      box-shadow: 0 0 0 2px rgba(255, 45, 107, 0.25);
+    }
+
     .hint {
       color: rgba(255, 210, 225, 0.55);
       font-size: 12px;
@@ -175,8 +209,8 @@
               d="M50,88 C50,88 8,62 8,34 C8,16 22,6 36,6 C44,6 50,12 50,20 C50,12 56,6 64,6 C78,6 92,16 92,34 C92,62 50,88 50,88 Z" />
           </clipPath>
         </defs>
-        <image href="assets/photo.jpg" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid slice"
-          clip-path="url(#heartClip)" />
+        <image id="heartPhoto" href="assets/photo.jpg" x="0" y="0" width="100" height="100"
+          preserveAspectRatio="xMidYMid slice" clip-path="url(#heartClip)" />
       </svg>
     </div>
   </div>
@@ -188,14 +222,78 @@
       <input id="bpmSlider" type="range" min="50" max="160" value="72" step="1">
       <span id="bpmLabel">72 BPM</span>
     </div>
+    <div class="mediaRow">
+      <label for="photoSelect">Ảnh:</label>
+      <select id="photoSelect" aria-label="Chọn ảnh"></select>
+    </div>
+    <div class="mediaRow">
+      <label for="songSelect">Nhạc:</label>
+      <select id="songSelect" aria-label="Chọn nhạc"></select>
+    </div>
     <div class="hint">Chạm nút để bắt đầu</div>
   </div>
 
-  <audio id="song" src="assets/Honcayeu.mp4" loop preload="auto"></audio>
+  <audio id="song" src="assets/Hon_ca_yeu.mp4" loop preload="auto"></audio>
 
   <script>
     (function () {
       "use strict";
+
+      const PHOTOS = [
+        { file: 'photo.jpg', label: 'Ảnh 1' },
+        { file: 'photo1.jpg', label: 'Ảnh 2' },
+        { file: 'photo2.jpg', label: 'Ảnh 3' },
+        { file: 'photo3.jpg', label: 'Ảnh 4' },
+        { file: 'photo4.jpg', label: 'Ảnh 5' }
+      ];
+
+      const SONGS = [
+        { file: 'Hon_ca_yeu.mp4', label: 'Hơn cả yêu' },
+        { file: 'Binh_yen.mp3', label: 'Bình yên' },
+        { file: 'Du_Em_Tung_Yeu.mp3', label: 'Dù em từng yêu' },
+        { file: 'In_Love.mp3', label: 'In Love' },
+        { file: 'Khong_Thoi_Gian.mp3', label: 'Không thời gian' },
+        { file: 'Nguo_ Im_Lang_Gap_Nguoi_Hay_Noi.mp3', label: 'Người im lặng gặp người hay nói' },
+        { file: 'Perfect.mp3', label: 'Perfect' },
+        { file: 'Tang_em_doa_hoa_hong.mp3', label: 'Tặng em đóa hoa hồng' }
+      ];
+
+      function assetUrl(name) {
+        return 'assets/' + encodeURIComponent(name);
+      }
+
+      function fillSelect(select, items, selectedFile) {
+        select.innerHTML = '';
+        for (const item of items) {
+          const opt = document.createElement('option');
+          opt.value = item.file;
+          opt.textContent = item.label;
+          if (item.file === selectedFile) opt.selected = true;
+          select.appendChild(opt);
+        }
+      }
+
+      function setFavicon(photoFile) {
+        const url = assetUrl(photoFile);
+        document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]').forEach((link) => {
+          link.href = url;
+        });
+      }
+
+      function setPhoto(photoFile) {
+        document.getElementById('heartPhoto').setAttribute('href', assetUrl(photoFile));
+        setFavicon(photoFile);
+      }
+
+      function setSong(songFile, resume) {
+        const wasPlaying = resume && isPlaying;
+        song.pause();
+        song.src = assetUrl(songFile);
+        song.load();
+        if (wasPlaying) {
+          song.play().catch(() => { });
+        }
+      }
 
       function heartPoint(t) {
         const x = 16 * Math.pow(Math.sin(t), 3);
@@ -422,6 +520,19 @@
       const playBtn = document.getElementById('playBtn');
       const bpmSlider = document.getElementById('bpmSlider');
       const bpmLabel = document.getElementById('bpmLabel');
+      const photoSelect = document.getElementById('photoSelect');
+      const songSelect = document.getElementById('songSelect');
+
+      fillSelect(photoSelect, PHOTOS, 'photo.jpg');
+      fillSelect(songSelect, SONGS, 'Honcayeu.mp4');
+
+      photoSelect.addEventListener('change', () => {
+        setPhoto(photoSelect.value);
+      });
+
+      songSelect.addEventListener('change', () => {
+        setSong(songSelect.value, true);
+      });
 
       bpmSlider.addEventListener('input', () => {
         bpm = parseInt(bpmSlider.value, 10);
