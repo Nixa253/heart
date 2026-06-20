@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trái Tim Đập Nhịp</title>
+  <style>
+    :root {
+      --bg: #050108;
+      --pink-core: #ff2d6b;
+      --pink-glow: #ff6fa5;
+      --pink-soft: #ffd3e0;
+      --photo-shift-x: 0%;
+      --photo-pan-x: 0%;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      position: relative;
+    }
+
+    #stage {
+      position: relative;
+      width: min(92vw, 640px);
+      height: min(92vw, 640px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    canvas#heartCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #photoWrap {
+      position: absolute;
+      width: 46%;
+      height: 46%;
+      left: 50%;
+      top: 50%;
+      transform: translate(calc(-50% + var(--photo-shift-x)), -50%) scale(1);
+      will-change: transform;
+      filter: drop-shadow(0 0 18px rgba(255, 45, 107, 0.55));
+    }
+
+    #photoWrap svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #photoWrap image {
+      filter: saturate(1.05) contrast(1.02);
+      transform: translateX(var(--photo-pan-x));
+    }
+
+    #ambientGlow {
+      position: absolute;
+      width: 120%;
+      height: 120%;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(circle, rgba(255, 45, 107, 0.18) 0%, rgba(255, 45, 107, 0.05) 35%, transparent 65%);
+      pointer-events: none;
+      will-change: opacity, transform;
+    }
+
+    #ui {
+      position: fixed;
+      bottom: 28px;
+      left: 0;
+      right: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      z-index: 10;
+    }
+
+    #playBtn {
+      background: linear-gradient(135deg, var(--pink-core), #b0144c);
+      color: #fff;
+      border: none;
+      padding: 12px 26px;
+      border-radius: 999px;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      box-shadow: 0 4px 18px rgba(255, 45, 107, 0.45);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    #playBtn:hover {
+      transform: translateY(-1px) scale(1.03);
+      box-shadow: 0 6px 22px rgba(255, 45, 107, 0.6);
+    }
+
+    #playBtn:active {
+      transform: scale(0.97);
+    }
+
+    #playBtn:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 3px;
+    }
+
+    #bpmRow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: rgba(255, 210, 225, 0.85);
+      font-size: 13px;
+    }
+
+    #bpmRow input[type="range"] {
+      width: 140px;
+      accent-color: var(--pink-core);
+    }
+
+    #bpmLabel {
+      min-width: 64px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hint {
+      color: rgba(255, 210, 225, 0.55);
+      font-size: 12px;
+      letter-spacing: 0.03em;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #ambientGlow {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="stage">
+    <div id="ambientGlow"></div>
+    <canvas id="heartCanvas"></canvas>
+    <div id="photoWrap">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <clipPath id="heartClip" clipPathUnits="objectBoundingBox">
+            <path transform="scale(0.01,0.01)"
+              d="M50,88 C50,88 8,62 8,34 C8,16 22,6 36,6 C44,6 50,12 50,20 C50,12 56,6 64,6 C78,6 92,16 92,34 C92,62 50,88 50,88 Z" />
+          </clipPath>
+        </defs>
+        <image href="assets/photo.jpg" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid slice"
+          clip-path="url(#heartClip)" />
+      </svg>
+    </div>
+  </div>
+
+  <div id="ui">
+    <button id="playBtn" type="button">♥ Bật nhịp tim &amp; nhạc</button>
+    <div id="bpmRow">
+      <span>Nhịp:</span>
+      <input id="bpmSlider" type="range" min="50" max="160" value="72" step="1">
+      <span id="bpmLabel">72 BPM</span>
+    </div>
+    <div class="hint">Chạm nút để bắt đầu</div>
+  </div>
+
+  <audio id="song" src="assets/Honcayeu.mp4" loop preload="auto"></audio>
+
+  <script>
+    (function () {
+      "use strict";
+
+      function heartPoint(t) {
+        const x = 16 * Math.pow(Math.sin(t), 3);
+        const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+        return { x, y: -y };
+      }
+
+      const canvas = document.getElementById('heartCanvas');
+      const ctx = canvas.getContext('2d');
+      const stage = document.getElementById('stage');
+      let W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+      function resize() {
+        const rect = stage.getBoundingClientRect();
+        W = rect.width;
+        H = rect.height;
+        canvas.width = Math.floor(W * DPR);
+        canvas.height = Math.floor(H * DPR);
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        buildParticles();
+      }
+
+      let particles = [];
+      const PARTICLE_COUNT = 1400;
+
+      function rand(min, max) { return min + Math.random() * (max - min); }
+
+      function buildParticles() {
+        particles = [];
+        const scaleUnit = Math.min(W, H) / 42;
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+          const t = rand(0, Math.PI * 2);
+          const p = heartPoint(t);
+          const spread = Math.random();
+          let jx, jy;
+          if (spread < 0.55) {
+            const f = Math.pow(Math.random(), 0.6);
+            jx = p.x * f;
+            jy = p.y * f;
+          } else if (spread < 0.85) {
+            jx = p.x + rand(-0.8, 0.8);
+            jy = p.y + rand(-0.8, 0.8);
+          } else {
+            jx = p.x * rand(1.0, 1.18);
+            jy = p.y * rand(1.0, 1.18);
+          }
+
+          particles.push({
+            baseX: jx * scaleUnit,
+            baseY: jy * scaleUnit,
+            angle: rand(0, Math.PI * 2),
+            radius: rand(0.6, 2.6),
+            speed: rand(0.3, 1.1),
+            twinklePhase: rand(0, Math.PI * 2),
+            twinkleSpeed: rand(0.02, 0.06),
+            hueShift: rand(-8, 10),
+            driftAmp: rand(0.6, 2.2),
+            driftPhase: rand(0, Math.PI * 2)
+          });
+        }
+      }
+
+      let pulse = 0;
+      let frameTime = 0;
+
+      function drawFrame(timeMs) {
+        frameTime = timeMs;
+        ctx.clearRect(0, 0, W, H);
+
+        const cx = W / 2, cy = H / 2;
+        const beatScale = 1 + pulse * 0.16;
+        const glowBoost = pulse;
+
+        for (let i = 0; i < particles.length; i++) {
+          const p = particles[i];
+          const drift = Math.sin(timeMs * 0.001 * p.speed + p.driftPhase) * p.driftAmp;
+          const x = cx + (p.baseX) * beatScale + drift * 0.3;
+          const y = cy + (p.baseY) * beatScale + Math.cos(timeMs * 0.0013 * p.speed + p.driftPhase) * p.driftAmp * 0.3;
+
+          const twinkle = 0.55 + 0.45 * Math.sin(timeMs * 0.001 * 1 + p.twinklePhase + p.twinkleSpeed * timeMs);
+          const alpha = Math.max(0.15, Math.min(1, twinkle * 0.8 + glowBoost * 0.35));
+          const r = p.radius * (1 + glowBoost * 0.6) * (0.8 + twinkle * 0.4);
+
+          const hue = 340 + p.hueShift;
+          const light = 55 + glowBoost * 20 + twinkle * 8;
+
+          ctx.beginPath();
+          ctx.fillStyle = `hsla(${hue}, 95%, ${Math.min(light, 80)}%, ${alpha})`;
+          ctx.shadowColor = `hsla(${hue}, 100%, 65%, ${0.5 + glowBoost * 0.5})`;
+          ctx.shadowBlur = 6 + glowBoost * 10;
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function loop(t) {
+        drawFrame(t);
+        requestAnimationFrame(loop);
+      }
+
+      const photoWrap = document.getElementById('photoWrap');
+      const ambientGlow = document.getElementById('ambientGlow');
+
+      function syncPhotoVisuals() {
+        const scale = 1 + pulse * 0.10;
+        photoWrap.style.transform = `translate(calc(-50% + var(--photo-shift-x)), -50%) scale(${scale})`;
+        const glowOpacity = 0.5 + pulse * 0.5;
+        ambientGlow.style.opacity = glowOpacity;
+        ambientGlow.style.transform = `translate(-50%,-50%) scale(${1 + pulse * 0.05})`;
+        requestAnimationFrame(syncPhotoVisuals);
+      }
+
+      let audioCtx = null;
+      let isPlaying = false;
+      let bpm = 72;
+      let nextBeatTime = 0;
+      let schedulerTimer = null;
+      let masterGain = null;
+      let songSource = null;
+      let songGain = null;
+      const song = document.getElementById('song');
+
+      function initAudio() {
+        if (audioCtx) return;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = 0.9;
+        masterGain.connect(audioCtx.destination);
+
+        songSource = audioCtx.createMediaElementSource(song);
+        songGain = audioCtx.createGain();
+        songGain.gain.value = 0.88;
+        songSource.connect(songGain);
+        songGain.connect(masterGain);
+      }
+
+      function scheduleThump(time, isLub) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        const startFreq = isLub ? 95 : 70;
+        const endFreq = isLub ? 48 : 38;
+        osc.frequency.setValueAtTime(startFreq, time);
+        osc.frequency.exponentialRampToValueAtTime(endFreq, time + 0.12);
+
+        const peak = isLub ? 0.32 : 0.22;
+        gain.gain.setValueAtTime(0.0001, time);
+        gain.gain.exponentialRampToValueAtTime(peak, time + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + (isLub ? 0.22 : 0.28));
+
+        osc.connect(gain);
+        gain.connect(masterGain);
+        osc.start(time);
+        osc.stop(time + 0.35);
+      }
+
+      let pulseAnimReq = null;
+      function animatePulseEnvelope() {
+        const start = performance.now();
+        const riseMs = 90;
+        const fallMs = 260;
+        const totalMs = riseMs + fallMs;
+
+        function step(now) {
+          const elapsed = now - start;
+          if (elapsed >= totalMs) {
+            pulse = 0;
+            return;
+          }
+          if (elapsed < riseMs) {
+            pulse = elapsed / riseMs;
+          } else {
+            const f = (elapsed - riseMs) / fallMs;
+            pulse = 1 - f;
+          }
+          pulseAnimReq = requestAnimationFrame(step);
+        }
+        if (pulseAnimReq) cancelAnimationFrame(pulseAnimReq);
+        pulseAnimReq = requestAnimationFrame(step);
+      }
+
+      function beatIntervalSec() {
+        return 60 / bpm;
+      }
+
+      const SCHEDULE_AHEAD = 0.3;
+      function scheduler() {
+        if (!audioCtx) return;
+        while (nextBeatTime < audioCtx.currentTime + SCHEDULE_AHEAD) {
+          const interval = beatIntervalSec();
+          scheduleThump(nextBeatTime, true);
+          scheduleThump(nextBeatTime + interval * 0.32, false);
+
+          const lubDelay = Math.max(0, (nextBeatTime - audioCtx.currentTime) * 1000);
+          const dubDelay = Math.max(0, (nextBeatTime + interval * 0.32 - audioCtx.currentTime) * 1000);
+          setTimeout(animatePulseEnvelope, lubDelay);
+          setTimeout(() => { animatePulseEnvelope(); }, dubDelay);
+
+          nextBeatTime += interval;
+        }
+      }
+
+      function startAudio() {
+        initAudio();
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        song.play().catch(() => { });
+        nextBeatTime = audioCtx.currentTime + 0.1;
+        if (schedulerTimer) clearInterval(schedulerTimer);
+        schedulerTimer = setInterval(scheduler, 50);
+        scheduler();
+        isPlaying = true;
+      }
+
+      function stopAudio() {
+        song.pause();
+        if (schedulerTimer) { clearInterval(schedulerTimer); schedulerTimer = null; }
+        isPlaying = false;
+      }
+
+      const playBtn = document.getElementById('playBtn');
+      const bpmSlider = document.getElementById('bpmSlider');
+      const bpmLabel = document.getElementById('bpmLabel');
+
+      bpmSlider.addEventListener('input', () => {
+        bpm = parseInt(bpmSlider.value, 10);
+        bpmLabel.textContent = bpm + ' BPM';
+      });
+
+      playBtn.addEventListener('click', () => {
+        if (!isPlaying) {
+          startAudio();
+          playBtn.textContent = '♥ Tạm dừng';
+        } else {
+          stopAudio();
+          playBtn.textContent = '♥ Bật nhịp tim & nhạc';
+        }
+      });
+
+      window.addEventListener('resize', resize);
+      resize();
+      requestAnimationFrame(loop);
+      requestAnimationFrame(syncPhotoVisuals);
+
+      let idlePhase = 0;
+      function idlePulse() {
+        if (!isPlaying) {
+          idlePhase += 0.045;
+          pulse = (Math.sin(idlePhase) * 0.5 + 0.5) * 0.35;
+        }
+        requestAnimationFrame(idlePulse);
+      }
+      requestAnimationFrame(idlePulse);
+
+    })();
+  </script>
+</body>
+
+</html>
