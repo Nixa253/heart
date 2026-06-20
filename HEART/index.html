@@ -68,15 +68,32 @@
       filter: drop-shadow(0 0 18px rgba(255, 45, 107, 0.55));
     }
 
-    #photoWrap svg {
+    /* Heart mask for both photo + video (avoid SVG foreignObject issues) */
+    #heartMedia {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='white' d='M50,88 C50,88 8,62 8,34 C8,16 22,6 36,6 C44,6 50,12 50,20 C50,12 56,6 64,6 C78,6 92,16 92,34 C92,62 50,88 50,88 Z'/%3E%3C/svg%3E");
+      -webkit-mask-repeat: no-repeat;
+      -webkit-mask-position: center;
+      -webkit-mask-size: 100% 100%;
+      mask-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='white' d='M50,88 C50,88 8,62 8,34 C8,16 22,6 36,6 C44,6 50,12 50,20 C50,12 56,6 64,6 C78,6 92,16 92,34 C92,62 50,88 50,88 Z'/%3E%3C/svg%3E\");
+      mask-repeat: no-repeat;
+      mask-position: center;
+      mask-size: 100% 100%;
+    }
+
+    #heartPhoto,
+    #heartVideo {
       width: 100%;
       height: 100%;
       display: block;
+      object-fit: cover;
+      transform: translateX(var(--photo-pan-x));
     }
 
-    #photoWrap image {
+    #heartPhoto {
       filter: saturate(1.05) contrast(1.02);
-      transform: translateX(var(--photo-pan-x));
     }
 
     #ambientGlow {
@@ -202,16 +219,10 @@
     <div id="ambientGlow"></div>
     <canvas id="heartCanvas"></canvas>
     <div id="photoWrap">
-      <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
-        <defs>
-          <clipPath id="heartClip" clipPathUnits="objectBoundingBox">
-            <path transform="scale(0.01,0.01)"
-              d="M50,88 C50,88 8,62 8,34 C8,16 22,6 36,6 C44,6 50,12 50,20 C50,12 56,6 64,6 C78,6 92,16 92,34 C92,62 50,88 50,88 Z" />
-          </clipPath>
-        </defs>
-        <image id="heartPhoto" href="assets/photo.jpg" x="0" y="0" width="100" height="100"
-          preserveAspectRatio="xMidYMid slice" clip-path="url(#heartClip)" />
-      </svg>
+      <div id="heartMedia">
+        <video id="heartVideo" src="assets/video1.mp4" autoplay loop muted playsinline preload="metadata"></video>
+        <img id="heartPhoto" src="assets/photo.jpg" alt=\"\" />
+      </div>
     </div>
   </div>
 
@@ -229,6 +240,10 @@
     <div class="mediaRow">
       <label for="songSelect">Nhạc:</label>
       <select id="songSelect" aria-label="Chọn nhạc"></select>
+    </div>
+    <div class="mediaRow">
+      <label for="videoSelect">Video:</label>
+      <select id="videoSelect" aria-label="Chọn video"></select>
     </div>
     <div class="hint">Chạm nút để bắt đầu</div>
   </div>
@@ -258,6 +273,12 @@
         { file: 'Tang_em_doa_hoa_hong.mp3', label: 'Tặng em đóa hoa hồng' }
       ];
 
+      const VIDEOS = [
+        { file: '', label: 'Không video' },
+        { file: 'video1.mp4', label: 'Video 1' },
+        { file: 'video2.mp4', label: 'Video 2' }
+      ];
+
       function assetUrl(name) {
         return 'assets/' + encodeURIComponent(name);
       }
@@ -281,7 +302,7 @@
       }
 
       function setPhoto(photoFile) {
-        document.getElementById('heartPhoto').setAttribute('href', assetUrl(photoFile));
+        document.getElementById('heartPhoto').setAttribute('src', assetUrl(photoFile));
         setFavicon(photoFile);
       }
 
@@ -293,6 +314,25 @@
         if (wasPlaying) {
           song.play().catch(() => { });
         }
+      }
+
+      const heartVideo = document.getElementById('heartVideo');
+
+      function setVideo(videoFile) {
+        const next = videoFile || '';
+        if (!next) {
+          heartVideo.pause();
+          heartVideo.removeAttribute('src');
+          heartVideo.load();
+          heartVideo.style.display = 'none';
+          return;
+        }
+
+        heartVideo.style.display = 'block';
+        heartVideo.muted = true;
+        heartVideo.src = assetUrl(next);
+        heartVideo.load();
+        heartVideo.play().catch(() => { });
       }
 
       function heartPoint(t) {
@@ -522,9 +562,12 @@
       const bpmLabel = document.getElementById('bpmLabel');
       const photoSelect = document.getElementById('photoSelect');
       const songSelect = document.getElementById('songSelect');
+      const videoSelect = document.getElementById('videoSelect');
 
       fillSelect(photoSelect, PHOTOS, 'photo.jpg');
-      fillSelect(songSelect, SONGS, 'Honcayeu.mp4');
+      fillSelect(songSelect, SONGS, 'Hon_ca_yeu.mp4');
+      fillSelect(videoSelect, VIDEOS, 'video1.mp4');
+      setVideo('video1.mp4');
 
       photoSelect.addEventListener('change', () => {
         setPhoto(photoSelect.value);
@@ -532,6 +575,10 @@
 
       songSelect.addEventListener('change', () => {
         setSong(songSelect.value, true);
+      });
+
+      videoSelect.addEventListener('change', () => {
+        setVideo(videoSelect.value);
       });
 
       bpmSlider.addEventListener('input', () => {
